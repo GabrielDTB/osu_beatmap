@@ -1,9 +1,6 @@
-pub mod hit_object;
-pub mod timing_point;
-
-use hit_object::HitObject;
+pub use crate::collections::HitObject;
+pub use crate::collections::TimingPoint;
 use num::rational::Ratio;
-use timing_point::TimingPoint;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Chart {

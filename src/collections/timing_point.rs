@@ -1,7 +1,5 @@
-pub mod effects;
-
-use super::super::shared::sample_set::SampleSet;
-use effects::Effects;
+pub use crate::parts::effects::*;
+use crate::parts::sample_set::*;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TimingPoint {

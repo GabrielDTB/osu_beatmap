@@ -1,14 +1,9 @@
-pub mod _break;
-pub mod background;
-pub mod color;
-pub mod countdown;
-pub mod overlay_position;
-
-use super::shared::sample_set::SampleSet;
-use _break::Break;
-use background::Background;
-use countdown::Countdown;
-use overlay_position::OverlayPosition;
+pub use crate::parts::_break::*;
+pub use crate::parts::background::*;
+pub use crate::parts::color::*;
+pub use crate::parts::countdown::*;
+pub use crate::parts::overlay_position::*;
+pub use crate::parts::sample_set::*;
 
 pub struct Customization {
     pub sample_set: Option<SampleSet>,
@@ -25,5 +20,5 @@ pub struct Customization {
     pub samples_match_playback_rate: Option<bool>,
     pub background: Option<Background>,
     pub breaks: Option<Vec<Break>>,
-    pub colors: Option<Vec<color::Color>>,
+    pub colors: Option<Vec<Color>>,
 }
