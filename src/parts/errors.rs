@@ -13,3 +13,8 @@ pub enum ParseError {
     #[error(transparent)]
     Unknown(#[from] anyhow::Error),
 }
+#[derive(Error, Debug)]
+pub enum CollectionError {
+    #[error("missing field {field:?} for collection {collection:?}")]
+    MissingField { field: String, collection: String },
+}
