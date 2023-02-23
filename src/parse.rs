@@ -29,12 +29,11 @@ pub fn parse_str(
     ParseError,
 > {
     // Chart section
-    let mut chart = None;
-    let mut stack_leniency = None;
-    let mut slider_multiplier = None;
-    let mut slider_tick_rate = None;
-    let mut timing_points = None;
-    let mut hit_objects = None;
+    let mut chart = if chart {
+        Some(ChartBuilder::new())
+    } else {
+        None
+    };
     // Customization section
     let mut customization = None;
     let mut sample_set = None;
