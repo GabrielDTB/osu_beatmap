@@ -5,7 +5,6 @@ use super::editor::*;
 use super::filedata::*;
 use super::metadata::*;
 use super::mode::*;
-use super::parts::errors::ParseError;
 
 pub fn parse_str(
     s: &str,
@@ -29,11 +28,7 @@ pub fn parse_str(
     ParseError,
 > {
     // Chart section
-    let mut chart = if chart {
-        Some(ChartBuilder::new())
-    } else {
-        None
-    };
+
     // Customization section
     let mut customization = None;
     let mut sample_set = None;

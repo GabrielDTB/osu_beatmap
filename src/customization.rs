@@ -1,9 +1,9 @@
-pub use crate::parts::_break::*;
-pub use crate::parts::background::*;
-pub use crate::parts::color::*;
-pub use crate::parts::countdown::*;
-pub use crate::parts::overlay_position::*;
-pub use crate::parts::sample_set::*;
+pub use crate::parts::Background;
+pub use crate::parts::Break;
+pub use crate::parts::Color;
+pub use crate::parts::Countdown;
+pub use crate::parts::OverlayPosition;
+pub use crate::parts::SampleSet;
 
 pub struct Customization {
     pub sample_set: Option<SampleSet>,
