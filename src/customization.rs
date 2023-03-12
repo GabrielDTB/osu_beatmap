@@ -6,19 +6,19 @@ pub use crate::parts::OverlayPosition;
 pub use crate::parts::SampleSet;
 
 pub struct Customization {
-    pub sample_set: Option<SampleSet>,
-    pub letterbox_in_breaks: Option<bool>,
-    pub story_fire_in_front: Option<bool>, // Deprecated
-    pub use_skin_sprites: Option<bool>,
-    pub always_show_play_field: Option<bool>, // Deprecated
-    pub overlay_position: Option<OverlayPosition>,
-    pub skin_preference: Option<String>,
-    pub epilepsy_warning: Option<bool>,
-    pub countdown: Option<Countdown>,
-    pub special_style: Option<bool>,
-    pub widescreen_storyboard: Option<bool>,
-    pub samples_match_playback_rate: Option<bool>,
-    pub background: Option<Background>,
-    pub breaks: Option<Vec<Break>>,
-    pub colors: Option<Vec<Color>>,
+    pub sample_set: SampleSet,             // Default = Normal
+    pub letterbox_in_breaks: bool,         // Default = 0
+    pub story_fire_in_front: bool,         // Deprecated, Default = 1
+    pub use_skin_sprites: bool,            // Default = 0
+    pub always_show_play_field: bool,      // Deprecated, Default = 0
+    pub overlay_position: OverlayPosition, // Default = NoChange
+    pub skin_preference: Option<String>,   // No default. Is it optional? TODO
+    pub epilepsy_warning: bool,            // Default = 0
+    pub countdown: Countdown,              // Default = 1 (normal)
+    pub special_style: bool,               // Default = 0
+    pub widescreen_storyboard: bool,       // Default = 0
+    pub samples_match_playback_rate: bool, // Default = 0
+    pub backgrounds: Vec<Background>,
+    pub breaks: Vec<Break>,
+    pub colors: Vec<Color>,
 }

@@ -1,4 +1,4 @@
-use num::rational::Ratio;
+pub use num::rational::Ratio;
 
 pub struct Editor {
     pub bookmarks: Option<Vec<i64>>,
