@@ -34,8 +34,8 @@ pub fn parse_str(
     let mut slider_tick_rate = None;
     // Random initial capacities.
     // Could run analytics to find a more optimal value.
-    let mut timing_points = Vec::<TimingPoint>::with_capacity(100);
-    let mut hit_objects = Vec::<HitObject>::with_capacity(100);
+    let mut timing_points = Vec::with_capacity(100);
+    let mut hit_objects = Vec::with_capacity(100);
     // Customization section
     let mut sample_set = None;
     let mut letterbox_in_breaks = None;
@@ -102,65 +102,131 @@ pub fn parse_str(
         {
             section = sections[position];
             sections = sections.drain(..position).collect();
-        } else {
-            // Otherwise, parse the line.
-            match section {
-                "[Preamble]" => {
-                    if filedata {
-                        // Check for the version.
-                        if let Some((_, rhs)) = line.split_once('v') {
-                            if let Ok(version) = rhs.parse::<u8>() {
-                                file_format = Some(version);
-                                break;
-                            }
-                        } else {
-                            return Err(ParseError::InvalidLine {
-                                line: line.into(),
-                                section: section.into(),
-                            });
-                        }
-                    }
+            continue;
+        } // Otherwise try to parse the line.
+        match section {
+            "[Preamble]" => {
+                if !filedata {
+                    continue;
                 }
-                "[General]" => {
-                    if chart | customization | filedata {
-                        if let Some((key, value)) = line.split_once(':') {
-                            let key = key.trim();
-                            let value = value.trim();
-                            if chart {
-                                match key {
-                                    "Mode" => {
-                                        mode = match key {
-                                            "0" => Some(Mode::Osu),
-                                            "1" => Some(Mode::Taiko),
-                                            "2" => Some(Mode::Catch),
-                                            "3" => Some(Mode::Mania),
-                                            _ => {
-                                                return Err(ParseError::InvalidToken {
-                                                    token: key.into(),
-                                                    type_name: "Mode".into(),
-                                                })
-                                            }
-                                        };
-                                    }
-                                }
-                            }
-                            if customization {
-                                match key {
-                                    "SampleSet" => {}
-                                }
-                            }
-                            if filedata {
-                                match key {
-                                    _ => {}
-                                }
-                            }
-                        } else {
-                            return Err(ParseError::InvalidLine {
-                                line: line.into(),
-                                section: section.into(),
-                            });
+                // Check for the version.
+                if let Some((_, rhs)) = line.split_once('v') {
+                    if let Ok(version) = rhs.parse::<u8>() {
+                        file_format = Some(version);
+                    }
+                } else {
+                    return Err(ParseError::InvalidLine {
+                        line: line.into(),
+                        section: section.into(),
+                    });
+                }
+            }
+            "[General]" => {
+                if !chart && !customization && !filedata {
+                    continue;
+                }
+                let mut invalid_line = false;
+                if let Some((key, value)) = line.split_once(':') {
+                    let key = key.trim();
+                    let value = value.trim();
+                    let mut key_matched = false;
+                    if chart {
+                        key_matched = true;
+                        match key {
+                            "Mode" => match value {
+                                "0" => mode = Some(Mode::Osu),
+                                "1" => mode = Some(Mode::Taiko),
+                                "2" => mode = Some(Mode::Catch),
+                                "3" => mode = Some(Mode::Mania),
+                                _ => invalid_line = true,
+                            },
+                            _ => key_matched = false,
                         }
                     }
+                    if customization && !key_matched {
+                        key_matched = true;
+                        match key {
+                            "SampleSet" => match value {
+                                "Default" => sample_set = Some(SampleSet::Default),
+                                "Normal" => sample_set = Some(SampleSet::Normal),
+                                "Soft" => sample_set = Some(SampleSet::Soft),
+                                "Drum" => sample_set = Some(SampleSet::Drum),
+                                _ => invalid_line = true,
+                            },
+                            "LetterboxInBreaks" => match value.parse::<bool>() {
+                                Ok(value) => letterbox_in_breaks = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            "StoryFireInFront" => match value.parse::<bool>() {
+                                Ok(value) => story_fire_in_front = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            "UseSkinSprites" => match value.parse::<bool>() {
+                                Ok(value) => story_fire_in_front = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            "AlwaysShowPlayField" => match value.parse::<bool>() {
+                                Ok(value) => always_show_play_field = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            "OverlayPosition" => match value {
+                                "NoChange" => overlay_position = Some(OverlayPosition::NoChange),
+                                "Below" => overlay_position = Some(OverlayPosition::Below),
+                                "Above" => overlay_position = Some(OverlayPosition::Above),
+                                _ => invalid_line = true,
+                            },
+                            "SkinPreference" => match value.is_empty() {
+                                false => skin_preference = Some(value.into()),
+                                _ => invalid_line = true,
+                            },
+                            "EpilepsyWarning" => match value.parse::<bool>() {
+                                Ok(value) => epilepsy_warning = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            "Countdown" => match value {
+                                "0" => countdown = Some(Countdown::None),
+                                "1" => countdown = Some(Countdown::Normal),
+                                "2" => countdown = Some(Countdown::Half),
+                                "3" => countdown = Some(Countdown::Double),
+                                _ => invalid_line = true,
+                            },
+                            "SpecialStyle" => match value.parse::<bool>() {
+                                Ok(value) => special_style = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            "WidescreenStoryboard" => match value.parse::<bool>() {
+                                Ok(value) => widescreen_storyboard = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            "SamplesMatchPlaybackRate" => match value.parse::<bool>() {
+                                Ok(value) => samples_match_playback_rate = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            _ => key_matched = false,
+                        }
+                    }
+                    if filedata && !key_matched {
+                        match key {
+                            "AudioFilename" => match value.is_empty() {
+                                false => audio_filename = Some(value.into()),
+                                _ => invalid_line = true,
+                            },
+                            "AudioLeadIn" => match value.parse::<i64>() {
+                                Ok(value) => audio_lead_in = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            "AudioHash" => match 
+                            _ => key_matched = false,
+                        }
+                    }
+                } else {
+                    invalid_line = true;
+                }
+                if invalid_line {
+                    return Err(ParseError::InvalidLine {
+                        line: line.into(),
+                        section: section.into(),
+                    });
                 }
             }
         }
