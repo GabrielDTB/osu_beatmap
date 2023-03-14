@@ -6,7 +6,7 @@ pub struct Metadata {
     pub creator: Option<String>,
     pub version: Option<String>,
     pub source: Option<String>,
-    pub tags: Option<Vec<String>>,
+    pub tags: Vec<String>,
     pub beatmap_id: Option<i64>,
     pub beatmap_set_id: Option<i64>,
 }

@@ -2,6 +2,7 @@ pub use crate::parts::Curve;
 pub use crate::parts::HalfHitSample;
 pub use crate::parts::HitSample;
 pub use crate::parts::HitSound;
+pub use crate::parts::ObjectType;
 pub use crate::parts::Type;
 
 #[derive(Debug, Clone, PartialEq)]

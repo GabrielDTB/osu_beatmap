@@ -49,16 +49,16 @@ pub fn parse_str(
     let mut special_style = None;
     let mut widescreen_storyboard = None;
     let mut samples_match_playback_rate = None;
-    let mut backgrounds = vec![];
-    let mut breaks = vec![];
-    let mut colors = vec![];
+    let mut backgrounds = Vec::new();
+    let mut breaks = Vec::new();
+    let mut colors = Vec::new();
     // Difficulty section
     let mut circle_size = None;
     let mut hpdrain_rate = None;
     let mut overall_difficulty = None;
     let mut approach_rate = None;
     // Editor section
-    let mut bookmarks = None;
+    let mut bookmarks = Vec::new();
     let mut distance_spacing = None;
     let mut beat_divisor = None;
     let mut grid_size = None;
@@ -78,7 +78,7 @@ pub fn parse_str(
     let mut creator = None;
     let mut version = None;
     let mut source = None;
-    let mut tags = None;
+    let mut tags = Vec::new();
     let mut beatmap_id = None;
     let mut beatmap_set_id = None;
 
@@ -111,7 +111,7 @@ pub fn parse_str(
                 }
                 // Check for the version.
                 if let Some((_, rhs)) = line.split_once('v') {
-                    if let Ok(version) = rhs.parse::<u8>() {
+                    if let Ok(version) = rhs.parse() {
                         file_format = Some(version);
                     }
                 } else {
@@ -153,19 +153,19 @@ pub fn parse_str(
                                 "Drum" => sample_set = Some(SampleSet::Drum),
                                 _ => invalid_line = true,
                             },
-                            "LetterboxInBreaks" => match value.parse::<bool>() {
+                            "LetterboxInBreaks" => match value.parse() {
                                 Ok(value) => letterbox_in_breaks = Some(value),
                                 _ => invalid_line = true,
                             },
-                            "StoryFireInFront" => match value.parse::<bool>() {
+                            "StoryFireInFront" => match value.parse() {
                                 Ok(value) => story_fire_in_front = Some(value),
                                 _ => invalid_line = true,
                             },
-                            "UseSkinSprites" => match value.parse::<bool>() {
+                            "UseSkinSprites" => match value.parse() {
                                 Ok(value) => story_fire_in_front = Some(value),
                                 _ => invalid_line = true,
                             },
-                            "AlwaysShowPlayField" => match value.parse::<bool>() {
+                            "AlwaysShowPlayField" => match value.parse() {
                                 Ok(value) => always_show_play_field = Some(value),
                                 _ => invalid_line = true,
                             },
@@ -179,7 +179,7 @@ pub fn parse_str(
                                 false => skin_preference = Some(value.into()),
                                 _ => invalid_line = true,
                             },
-                            "EpilepsyWarning" => match value.parse::<bool>() {
+                            "EpilepsyWarning" => match value.parse() {
                                 Ok(value) => epilepsy_warning = Some(value),
                                 _ => invalid_line = true,
                             },
@@ -190,15 +190,15 @@ pub fn parse_str(
                                 "3" => countdown = Some(Countdown::Double),
                                 _ => invalid_line = true,
                             },
-                            "SpecialStyle" => match value.parse::<bool>() {
+                            "SpecialStyle" => match value.parse() {
                                 Ok(value) => special_style = Some(value),
                                 _ => invalid_line = true,
                             },
-                            "WidescreenStoryboard" => match value.parse::<bool>() {
+                            "WidescreenStoryboard" => match value.parse() {
                                 Ok(value) => widescreen_storyboard = Some(value),
                                 _ => invalid_line = true,
                             },
-                            "SamplesMatchPlaybackRate" => match value.parse::<bool>() {
+                            "SamplesMatchPlaybackRate" => match value.parse() {
                                 Ok(value) => samples_match_playback_rate = Some(value),
                                 _ => invalid_line = true,
                             },
@@ -206,17 +206,462 @@ pub fn parse_str(
                         }
                     }
                     if filedata && !key_matched {
+                        key_matched = true;
                         match key {
                             "AudioFilename" => match value.is_empty() {
                                 false => audio_filename = Some(value.into()),
                                 _ => invalid_line = true,
                             },
-                            "AudioLeadIn" => match value.parse::<i64>() {
+                            "AudioLeadIn" => match value.parse() {
                                 Ok(value) => audio_lead_in = Some(value),
                                 _ => invalid_line = true,
                             },
-                            "AudioHash" => match 
+                            "AudioHash" => match value.is_empty() {
+                                false => audio_hash = Some(value.into()),
+                                _ => invalid_line = true,
+                            },
+                            "PreviewTime" => match value.parse() {
+                                Ok(value) => preview_time = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            "CountdownOffset" => match value.parse() {
+                                Ok(value) => countdown_offset = Some(value),
+                                _ => invalid_line = true,
+                            },
                             _ => key_matched = false,
+                        }
+                    }
+                } else {
+                    invalid_line = true;
+                }
+                if invalid_line {
+                    return Err(ParseError::InvalidLine {
+                        line: line.into(),
+                        section: section.into(),
+                    });
+                }
+            }
+            "[Editor]" => {
+                if !editor {
+                    continue;
+                }
+                let mut invalid_line = false;
+                if let Some((key, value)) = line.split_once(':') {
+                    let key = key.trim();
+                    let value = value.trim();
+                    match key {
+                        "[Bookmarks]" => {
+                            for token in value.split(',') {
+                                // Check delimiter TODO
+                                match token.parse() {
+                                    Ok(token) => bookmarks.push(token),
+                                    _ => {
+                                        invalid_line = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        "[DistanceSpacing]" => match from_str_ratio(value) {
+                            Ok(value) => distance_spacing = Some(value),
+                            _ => invalid_line = true,
+                        },
+                        "[BeatDivisor]" => match value.parse() {
+                            Ok(value) => beat_divisor = Some(value),
+                            _ => invalid_line = true,
+                        },
+                        "[GridSize]" => match value.parse() {
+                            Ok(value) => grid_size = Some(value),
+                            _ => invalid_line = true,
+                        },
+                        "[TimelineZoom]" => match from_str_ratio(value) {
+                            Ok(value) => timeline_zoom = Some(value),
+                            _ => invalid_line = true,
+                        },
+                    }
+                } else {
+                    invalid_line = true;
+                }
+                if invalid_line {
+                    return Err(ParseError::InvalidLine {
+                        line: line.into(),
+                        section: section.into(),
+                    });
+                }
+            }
+            "[Metadata]" => {
+                if !metadata {
+                    continue;
+                }
+                let mut invalid_line = false;
+                if let Some((key, value)) = line.split_once(':') {
+                    let key = key.trim();
+                    let value = value.trim();
+                    match key {
+                        "Title" => title = Some(value.into()),
+                        "TitleUnicode" => title_unicode = Some(value.into()),
+                        "Artist" => artist = Some(value.into()),
+                        "ArtistUnicode" => artist_unicode = Some(value.into()),
+                        "Creator" => creator = Some(value.into()),
+                        "Version" => version = Some(value.into()),
+                        "Source" => source = Some(value.into()),
+                        "Tags" => {
+                            for token in value.split(',') {
+                                // Check delimiter TODO
+                                tags.push(token.into());
+                            }
+                        }
+                        "BeatmapID" => match value.parse() {
+                            Ok(value) => beatmap_id = Some(value),
+                            _ => invalid_line = true,
+                        },
+                        "BeatmapSetID" => match value.parse() {
+                            Ok(value) => beatmap_set_id = Some(value),
+                            _ => invalid_line = true,
+                        },
+                    }
+                } else {
+                    invalid_line = true;
+                }
+                if invalid_line {
+                    return Err(ParseError::InvalidLine {
+                        line: line.into(),
+                        section: section.into(),
+                    });
+                }
+            }
+            "Difficulty" => {
+                if !chart && !difficulty {
+                    continue;
+                }
+                let invalid_line = false;
+                if let Some((key, value)) = line.split_once(':') {
+                    let key_matched = false;
+                    if chart {
+                        key_matched = true;
+                        match key {
+                            "StackLeniency" => match from_str_ratio(value) {
+                                Ok(value) => stack_leniency = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            "SliderMultiplier" => match from_str_ratio(value) {
+                                Ok(value) => slider_multiplier = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            "SliderTickRate" => match from_str_ratio(value) {
+                                Ok(value) => slider_tick_rate = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            _ => key_matched = false,
+                        }
+                    }
+                    if difficulty && !key_matched {
+                        key_matched = true;
+                        match key {
+                            "CircleSize" => match from_str_one_decimal(value) {
+                                Ok(value) => circle_size = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            "HPDrainRate" => match from_str_one_decimal(value) {
+                                Ok(value) => hpdrain_rate = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            "OverallDifficulty" => match from_str_one_decimal(value) {
+                                Ok(value) => overall_difficulty = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            "ApproachRate" => match from_str_one_decimal(value) {
+                                Ok(value) => approach_rate = Some(value),
+                                _ => invalid_line = true,
+                            },
+                            _ => key_matched = false,
+                        }
+                    }
+                } else {
+                    invalid_line = true;
+                }
+                if invalid_line {
+                    return Err(ParseError::InvalidLine {
+                        line: line.into(),
+                        section: section.into(),
+                    });
+                }
+            }
+            "[Events]" => {
+                if !customization {
+                    continue;
+                }
+                let mut invalid_line = false;
+                match line.chars().next() {
+                    Some('0') => {} // Parse background TODO
+                    Some('2') => {} // Parse break TODO
+                    // Enumerate and parse all events TODO
+                    _ => invalid_line = true,
+                }
+                if invalid_line {
+                    return Err(ParseError::InvalidLine {
+                        line: line.into(),
+                        section: section.into(),
+                    });
+                }
+            }
+            "[TimingPoints]" => {
+                if !chart {
+                    continue;
+                }
+                let meter = 4;
+                let sample_set = SampleSet::Default;
+                let sample_index = 0;
+                let volume = 100;
+                let uninherited = true;
+                let effects = Effects {
+                    kiai: false,
+                    ommit_barline: false,
+                };
+                let mut invalid_line = false;
+                match (
+                    line.split(',').nth(0),
+                    line.split(',').nth(1),
+                    line.split(',').nth(2),
+                    line.split(',').nth(3),
+                    line.split(',').nth(4),
+                    line.split(',').nth(5),
+                    line.split(',').nth(6),
+                    line.split(',').nth(7),
+                ) {
+                    (Some(time), Some(beat_length), None, None, None, None, None, None) => {
+                        match (time.trim().parse(), beat_length.trim().parse()) {
+                            (Ok(time), Ok(beat_length)) => timing_points.push(TimingPoint {
+                                time,
+                                beat_length,
+                                meter,
+                                sample_set,
+                                sample_index,
+                                volume,
+                                uninherited,
+                                effects,
+                            }),
+                            _ => invalid_line = true,
+                        }
+                    }
+                    (
+                        Some(time),
+                        Some(beat_length),
+                        Some(meter),
+                        Some(sample_set),
+                        Some(sample_index),
+                        Some(volume),
+                        None,
+                        None,
+                    ) => {
+                        match (
+                            time.trim().parse(),
+                            beat_length.trim().parse(),
+                            meter.trim().parse(),
+                            match sample_set.trim() {
+                                "0" => Some(SampleSet::Default),
+                                "1" => Some(SampleSet::Normal),
+                                "2" => Some(SampleSet::Soft),
+                                "3" => Some(SampleSet::Drum),
+                                _ => None,
+                            },
+                            sample_index.trim().parse(),
+                            volume.trim().parse(),
+                        ) {
+                            (
+                                Ok(time),
+                                Ok(beat_length),
+                                Ok(meter),
+                                Some(sample_set),
+                                Ok(sample_index),
+                                Ok(volume),
+                            ) => timing_points.push(TimingPoint {
+                                time,
+                                beat_length,
+                                meter,
+                                sample_set,
+                                sample_index,
+                                volume,
+                                uninherited,
+                                effects,
+                            }),
+                            _ => invalid_line = true,
+                        }
+                    }
+                    (
+                        Some(time),
+                        Some(beat_length),
+                        Some(meter),
+                        Some(sample_set),
+                        Some(sample_index),
+                        Some(volume),
+                        Some(uninherited),
+                        None,
+                    ) => {
+                        match (
+                            time.trim().parse(),
+                            beat_length.trim().parse(),
+                            meter.trim().parse(),
+                            match sample_set.trim() {
+                                "0" => Some(SampleSet::Default),
+                                "1" => Some(SampleSet::Normal),
+                                "2" => Some(SampleSet::Soft),
+                                "3" => Some(SampleSet::Drum),
+                                _ => None,
+                            },
+                            sample_index.trim().parse(),
+                            volume.trim().parse(),
+                            uninherited.trim().parse(),
+                        ) {
+                            (
+                                Ok(time),
+                                Ok(beat_length),
+                                Ok(meter),
+                                Some(sample_set),
+                                Ok(sample_index),
+                                Ok(volume),
+                                Ok(uninherited),
+                            ) => timing_points.push(TimingPoint {
+                                time,
+                                beat_length,
+                                meter,
+                                sample_set,
+                                sample_index,
+                                volume,
+                                uninherited,
+                                effects,
+                            }),
+                            _ => invalid_line = true,
+                        }
+                    }
+                    (
+                        Some(time),
+                        Some(beat_length),
+                        Some(meter),
+                        Some(sample_set),
+                        Some(sample_index),
+                        Some(volume),
+                        Some(uninherited),
+                        Some(effects),
+                    ) => {
+                        match (
+                            time.trim().parse(),
+                            beat_length.trim().parse(),
+                            meter.trim().parse(),
+                            match sample_set.trim() {
+                                "0" => Some(SampleSet::Default),
+                                "1" => Some(SampleSet::Normal),
+                                "2" => Some(SampleSet::Soft),
+                                "3" => Some(SampleSet::Drum),
+                                _ => None,
+                            },
+                            sample_index.trim().parse(),
+                            volume.trim().parse(),
+                            uninherited.trim().parse(),
+                            match effects.trim() {
+                                "0" => Some(Effects {
+                                    kiai: false,
+                                    ommit_barline: false,
+                                }),
+                                "1" => Some(Effects {
+                                    kiai: true,
+                                    ommit_barline: false,
+                                }),
+                                "4" => Some(Effects {
+                                    kiai: false,
+                                    ommit_barline: true,
+                                }),
+                                "5" => Some(Effects {
+                                    kiai: true,
+                                    ommit_barline: true,
+                                }),
+                                _ => None,
+                            },
+                        ) {
+                            (
+                                Ok(time),
+                                Ok(beat_length),
+                                Ok(meter),
+                                Some(sample_set),
+                                Ok(sample_index),
+                                Ok(volume),
+                                Ok(uninherited),
+                                Some(effects),
+                            ) => timing_points.push(TimingPoint {
+                                time,
+                                beat_length,
+                                meter,
+                                sample_set,
+                                sample_index,
+                                volume,
+                                uninherited,
+                                effects,
+                            }),
+                            _ => invalid_line = true,
+                        }
+                    }
+                    _ => invalid_line = true,
+                }
+                if invalid_line {
+                    return Err(ParseError::InvalidLine {
+                        line: line.into(),
+                        section: section.into(),
+                    });
+                }
+            }
+            "[Colours]" => {
+                if !customization {
+                    continue;
+                }
+                let mut invalid_line = false;
+                if let Some((_, value)) = line.split_once(':') {
+                    if let (Some(red), Some(green), Some(blue)) = (
+                        value.split(',').nth(0),
+                        value.split(',').nth(1),
+                        value.split(',').nth(2),
+                    ) {
+                        match (red.parse(), green.parse(), blue.parse()) {
+                            (Ok(red), Ok(green), Ok(blue)) => {
+                                colors.push(Color { red, green, blue })
+                            }
+                            _ => invalid_line = true,
+                        }
+                    } else {
+                        invalid_line = true;
+                    }
+                } else {
+                    invalid_line = true;
+                }
+                if invalid_line {
+                    return Err(ParseError::InvalidLine {
+                        line: line.into(),
+                        section: section.into(),
+                    });
+                }
+            }
+            "[HitObjects]" => {
+                if !chart {
+                    continue;
+                }
+                let mut invalid_line = false;
+                if let Some(type_) = {
+                    match line.split(',').nth(3) {
+                        Some(value) => Some(Type), // Parse type TODO
+                        _ => None,
+                    }
+                } {
+                    match type_.object_type {
+                        ObjectType::Circle => {
+                            // Parse hit circle TODO
+                        }
+                        ObjectType::Slider => {
+                            // Parse slider TODO
+                        }
+                        ObjectType::Spinner => {
+                            // Parse spinner TODO
+                        }
+                        ObjectType::ManiaHold => {
+                            // Parse mania hold TODO
                         }
                     }
                 } else {
@@ -401,4 +846,39 @@ pub fn parse_str(
         None
     };
     Ok((chart, customization, difficulty, editor, filedata, metadata))
+}
+
+fn from_str_ratio(decimal: &str) -> Result<Ratio<i64>, Box<dyn std::error::Error>> {
+    let mut numerator;
+    let mut denominator;
+    if let Some((lhs, rhs)) = decimal.split_once('.') {
+        let (lhs, rhs) = match (lhs.is_empty(), rhs.is_empty()) {
+            (false, false) => (lhs, rhs),
+            (true, false) => ("0", rhs),
+            (false, true) => (lhs, "0"),
+            (true, true) => ("0", "0"),
+        };
+        let magnitude: u32 = rhs.len().try_into()?;
+        numerator = (lhs.parse::<i64>()? * 10_i64.pow(magnitude)) + rhs.parse::<i64>()?;
+        denominator = 10_i64.pow(magnitude);
+    } else {
+        let decimal = if decimal.is_empty() { "0" } else { decimal };
+        numerator = decimal.parse::<i64>()?;
+        denominator = 1;
+    }
+
+    Ok(Ratio::new(numerator, denominator))
+}
+
+fn from_str_one_decimal(decimal: &str) -> Result<u8, Box<dyn std::error::Error>> {
+    if let Some((lhs, rhs)) = decimal.split_once('.') {
+        match (lhs.is_empty(), rhs.is_empty()) {
+            (false, false) => Ok(lhs.parse::<u8>()? * 10 + rhs.parse::<u8>()?),
+            (true, false) => Ok(rhs.parse::<u8>()?),
+            (false, true) => Ok(lhs.parse::<u8>()? * 10),
+            (true, true) => Ok(0),
+        }
+    } else {
+        Ok(decimal.parse::<u8>()? * 10)
+    }
 }
