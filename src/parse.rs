@@ -6,6 +6,7 @@ pub use super::difficulty::*;
 pub use super::editor::*;
 pub use super::filedata::*;
 pub use super::metadata::*;
+use bitvec::prelude::*;
 pub use errors::*;
 
 pub fn parse_str(
@@ -644,13 +645,141 @@ pub fn parse_str(
                     continue;
                 }
                 let mut invalid_line = false;
-                if let Some(type_) = {
-                    match line.split(',').nth(3) {
-                        Some(value) => Some(Type), // Parse type TODO
+                let split = line.split(',');
+                let x = match split.nth(0) {
+                    Some(value) => match value.trim().parse::<i64>() {
+                        Ok(value) => Some(value),
                         _ => None,
+                    },
+                    _ => None,
+                };
+                let y = match x {
+                    Some(_) => match split.nth(1) {
+                        Some(value) => match value.trim().parse::<i64>() {
+                            Ok(value) => Some(value),
+                            _ => None,
+                        },
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                let time = match y {
+                    Some(_) => match split.nth(2) {
+                        Some(value) => match value.trim().parse::<i64>() {
+                            Ok(value) => Some(value),
+                            _ => None,
+                        },
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                let flag_bits = match time {
+                    Some(_) => match split.nth(3) {
+                        Some(value) => match value.trim().parse::<u8>() {
+                            Ok(value) => Some(value.view_bits::<Lsb0>()),
+                            _ => None,
+                        },
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                let object_type = match flag_bits {
+                    Some(bits) => match {
+                        bits[0] as usize * 2_usize.pow(0)
+                            + bits[1] as usize * 2_usize.pow(1)
+                            + bits[3] as usize * 2_usize.pow(3)
+                            + bits[7] as usize * 2_usize.pow(7)
+                    } {
+                        1 => Some(ObjectType::Circle),
+                        2 => Some(ObjectType::Slider),
+                        8 => Some(ObjectType::Spinner),
+                        128 => Some(ObjectType::ManiaHold),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                let flags = match object_type {
+                    Some(object_type) => Some(Type {
+                        object_type,
+                        new_combo: flag_bits?[2],
+                        color_skip: flag_bits?[4..7].load::<u8>(),
+                    }),
+                    None => None,
+                };
+                let hit_sound = match flags {
+                    Some(_) => match split.nth(4) {
+                        Some(value) => match value.trim().parse::<u4>() {
+                            Some(value) => {
+                                let bits = value.view_bits::<Lsb0>();
+                                Some(HitSound {
+                                    normal: bits[0],
+                                    whistle: bits[1],
+                                    finish: bits[2],
+                                    clap: bits[3],
+                                })
+                            }
+                            _ => None,
+                        },
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                fn parse_hit_sample(sample: &str) -> Option<HitSample> {
+                    let split = sample.split(':');
+                    let normal_set = match split.nth(0) {
+                        Some(value) => match value.trim() {
+                            "0" => Some(SampleSet::Default),
+                            "1" => Some(SampleSet::Normal),
+                            "2" => Some(SampleSet::Soft),
+                            "3" => Some(SampleSet::Drum),
+                        },
+                        _ => None,
+                    };
+                    let addition_set = match split.nth(1) {
+                        Some(value) => match value.trim() {
+                            "0" => Some(SampleSet::Default),
+                            "1" => Some(SampleSet::Normal),
+                            "2" => Some(SampleSet::Soft),
+                            "3" => Some(SampleSet::Drum),
+                        },
+                        _ => None,
+                    };
+                    let index = match split.nth(2) {
+                        Some(value) => match value.trim().parse() {
+                            Ok(value) => Some(value),
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    let volume = match split.nth(3) {
+                        Some(value) => match value.trim().parse() {
+                            Ok(value) => Some(value),
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    let filename = match split.nth(4) {
+                        Some(value) => Some(value.trim()),
+                        _ => None,
+                    };
+                    HitSample {
+                        normal_set: match normal_set {
+                            Some(value) => value,
+                            _ => SampleSet::Default,
+                        },
+                        addition_set: match addition_set {
+                            Some(value) => value,
+                            _ => SampleSet::Default,
+                        },
+                        index: match index {
+                            Some(value) => value,
+                            _ => 0,
+                        },
+                        v,
                     }
-                } {
-                    match type_.object_type {
+                }
+                match hit_sound {
+                    Some(_) => match object_type? {
                         ObjectType::Circle => {
                             // Parse hit circle TODO
                         }
@@ -663,9 +792,8 @@ pub fn parse_str(
                         ObjectType::ManiaHold => {
                             // Parse mania hold TODO
                         }
-                    }
-                } else {
-                    invalid_line = true;
+                    },
+                    _ => invalid_line = true,
                 }
                 if invalid_line {
                     return Err(ParseError::InvalidLine {
@@ -725,18 +853,18 @@ pub fn parse_str(
 
     let customization = if customization {
         Some(Customization {
-            sample_set: sample_set.unwrap_or_else(|| SampleSet::Normal),
-            letterbox_in_breaks: letterbox_in_breaks.unwrap_or_else(|| false),
-            story_fire_in_front: story_fire_in_front.unwrap_or_else(|| true),
-            use_skin_sprites: use_skin_sprites.unwrap_or_else(|| false),
-            always_show_play_field: always_show_play_field.unwrap_or_else(|| false),
-            overlay_position: overlay_position.unwrap_or_else(|| OverlayPosition::NoChange),
+            sample_set: sample_set.unwrap_or(SampleSet::Normal),
+            letterbox_in_breaks: letterbox_in_breaks.unwrap_or(false),
+            story_fire_in_front: story_fire_in_front.unwrap_or(true),
+            use_skin_sprites: use_skin_sprites.unwrap_or(false),
+            always_show_play_field: always_show_play_field.unwrap_or(false),
+            overlay_position: overlay_position.unwrap_or(OverlayPosition::NoChange),
             skin_preference,
-            epilepsy_warning: epilepsy_warning.unwrap_or_else(|| false),
-            countdown: countdown.unwrap_or_else(|| Countdown::Normal),
-            special_style: special_style.unwrap_or_else(|| false),
-            widescreen_storyboard: widescreen_storyboard.unwrap_or_else(|| false),
-            samples_match_playback_rate: samples_match_playback_rate.unwrap_or_else(|| false),
+            epilepsy_warning: epilepsy_warning.unwrap_or(false),
+            countdown: countdown.unwrap_or(Countdown::Normal),
+            special_style: special_style.unwrap_or(false),
+            widescreen_storyboard: widescreen_storyboard.unwrap_or(false),
+            samples_match_playback_rate: samples_match_playback_rate.unwrap_or(false),
             backgrounds,
             breaks,
             colors,
@@ -820,10 +948,10 @@ pub fn parse_str(
                     })
                 }
             },
-            audio_lead_in: audio_lead_in.unwrap_or_else(|| 0),
+            audio_lead_in: audio_lead_in.unwrap_or(0),
             audio_hash,
-            preview_time: preview_time.unwrap_or_else(|| -1),
-            countdown_offset: countdown_offset.unwrap_or_else(|| 0),
+            preview_time: preview_time.unwrap_or(-1),
+            countdown_offset: countdown_offset.unwrap_or(0),
         })
     } else {
         None
