@@ -94,7 +94,14 @@ pub fn parse_str(
         "[HitObjects]",
     ];
     let mut section = "[Preamble]";
-    for line in s.lines().map(|l| l.trim()).filter(|l| !l.is_empty()) {
+    let mut lines = s
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .peekable();
+    let mut current_line = lines.next();
+    while current_line != None {
+        let line = current_line.unwrap();
         // Go the the next section if we find a section header.
         if let Some(position) = sections
             .iter()
@@ -105,704 +112,662 @@ pub fn parse_str(
             sections = sections.drain(..position).collect();
             continue;
         } // Otherwise try to parse the line.
+        let mut parsed = false;
         match section {
-            "[Preamble]" => {
+            "[Preamble]" => 'preamble: {
                 if !filedata {
-                    continue;
+                    break 'preamble;
                 }
-                // Check for the version.
-                if let Some((_, rhs)) = line.split_once('v') {
-                    if let Ok(version) = rhs.parse() {
-                        file_format = Some(version);
-                    }
-                } else {
-                    return Err(ParseError::InvalidLine {
-                        line: line.into(),
-                        section: section.into(),
-                    });
-                }
+                // Check for version
+                let version = match line.split_once('v') {
+                    Some((_, rhs)) => rhs,
+                    _ => break 'preamble,
+                };
+                // Parse version
+                match version.parse() {
+                    Ok(version) => file_format = Some(version),
+                    _ => break 'preamble,
+                };
+                parsed = true;
             }
-            "[General]" => {
+            "[General]" => 'general: {
                 if !chart && !customization && !filedata {
-                    continue;
-                }
-                let mut invalid_line = false;
-                if let Some((key, value)) = line.split_once(':') {
-                    let key = key.trim();
-                    let value = value.trim();
-                    let mut key_matched = false;
-                    if chart {
-                        key_matched = true;
-                        match key {
-                            "Mode" => match value {
-                                "0" => mode = Some(Mode::Osu),
-                                "1" => mode = Some(Mode::Taiko),
-                                "2" => mode = Some(Mode::Catch),
-                                "3" => mode = Some(Mode::Mania),
-                                _ => invalid_line = true,
-                            },
-                            _ => key_matched = false,
-                        }
-                    }
-                    if customization && !key_matched {
-                        key_matched = true;
-                        match key {
-                            "SampleSet" => match value {
-                                "Default" => sample_set = Some(SampleSet::Default),
-                                "Normal" => sample_set = Some(SampleSet::Normal),
-                                "Soft" => sample_set = Some(SampleSet::Soft),
-                                "Drum" => sample_set = Some(SampleSet::Drum),
-                                _ => invalid_line = true,
-                            },
-                            "LetterboxInBreaks" => match value.parse() {
-                                Ok(value) => letterbox_in_breaks = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            "StoryFireInFront" => match value.parse() {
-                                Ok(value) => story_fire_in_front = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            "UseSkinSprites" => match value.parse() {
-                                Ok(value) => story_fire_in_front = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            "AlwaysShowPlayField" => match value.parse() {
-                                Ok(value) => always_show_play_field = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            "OverlayPosition" => match value {
-                                "NoChange" => overlay_position = Some(OverlayPosition::NoChange),
-                                "Below" => overlay_position = Some(OverlayPosition::Below),
-                                "Above" => overlay_position = Some(OverlayPosition::Above),
-                                _ => invalid_line = true,
-                            },
-                            "SkinPreference" => match value.is_empty() {
-                                false => skin_preference = Some(value.into()),
-                                _ => invalid_line = true,
-                            },
-                            "EpilepsyWarning" => match value.parse() {
-                                Ok(value) => epilepsy_warning = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            "Countdown" => match value {
-                                "0" => countdown = Some(Countdown::None),
-                                "1" => countdown = Some(Countdown::Normal),
-                                "2" => countdown = Some(Countdown::Half),
-                                "3" => countdown = Some(Countdown::Double),
-                                _ => invalid_line = true,
-                            },
-                            "SpecialStyle" => match value.parse() {
-                                Ok(value) => special_style = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            "WidescreenStoryboard" => match value.parse() {
-                                Ok(value) => widescreen_storyboard = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            "SamplesMatchPlaybackRate" => match value.parse() {
-                                Ok(value) => samples_match_playback_rate = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            _ => key_matched = false,
-                        }
-                    }
-                    if filedata && !key_matched {
-                        key_matched = true;
-                        match key {
-                            "AudioFilename" => match value.is_empty() {
-                                false => audio_filename = Some(value.into()),
-                                _ => invalid_line = true,
-                            },
-                            "AudioLeadIn" => match value.parse() {
-                                Ok(value) => audio_lead_in = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            "AudioHash" => match value.is_empty() {
-                                false => audio_hash = Some(value.into()),
-                                _ => invalid_line = true,
-                            },
-                            "PreviewTime" => match value.parse() {
-                                Ok(value) => preview_time = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            "CountdownOffset" => match value.parse() {
-                                Ok(value) => countdown_offset = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            _ => key_matched = false,
-                        }
-                    }
-                } else {
-                    invalid_line = true;
-                }
-                if invalid_line {
-                    return Err(ParseError::InvalidLine {
-                        line: line.into(),
-                        section: section.into(),
-                    });
-                }
-            }
-            "[Editor]" => {
-                if !editor {
-                    continue;
-                }
-                let mut invalid_line = false;
-                if let Some((key, value)) = line.split_once(':') {
-                    let key = key.trim();
-                    let value = value.trim();
+                    break 'general;
+                };
+                let (key, value) = match line.split_once(':') {
+                    Some((lhs, rhs)) => (lhs.trim(), rhs.trim()),
+                    _ => break 'general,
+                };
+                let mut key_matched = false;
+                if chart {
+                    key_matched = true;
                     match key {
-                        "[Bookmarks]" => {
-                            for token in value.split(',') {
-                                // Check delimiter TODO
-                                match token.parse() {
-                                    Ok(token) => bookmarks.push(token),
-                                    _ => {
-                                        invalid_line = true;
-                                        break;
-                                    }
+                        "Mode" => match value.parse() {
+                            Ok(0) => mode = Some(Mode::Osu),
+                            Ok(1) => mode = Some(Mode::Taiko),
+                            Ok(2) => mode = Some(Mode::Catch),
+                            Ok(3) => mode = Some(Mode::Mania),
+                            _ => break 'general,
+                        },
+                        _ => key_matched = false,
+                    };
+                };
+                if customization && !key_matched {
+                    key_matched = true;
+                    match key {
+                        "SampleSet" => match value {
+                            "Default" => sample_set = Some(SampleSet::Default),
+                            "Normal" => sample_set = Some(SampleSet::Normal),
+                            "Soft" => sample_set = Some(SampleSet::Soft),
+                            "Drum" => sample_set = Some(SampleSet::Drum),
+                            _ => break 'general,
+                        },
+                        "LetterboxInBreaks" => match value.parse() {
+                            Ok(value) => letterbox_in_breaks = Some(value),
+                            _ => break 'general,
+                        },
+                        "StoryFireInFront" => match value.parse() {
+                            Ok(value) => story_fire_in_front = Some(value),
+                            _ => break 'general,
+                        },
+                        "UseSkinSprites" => match value.parse() {
+                            Ok(value) => story_fire_in_front = Some(value),
+                            _ => break 'general,
+                        },
+                        "AlwaysShowPlayField" => match value.parse() {
+                            Ok(value) => always_show_play_field = Some(value),
+                            _ => break 'general,
+                        },
+                        "OverlayPosition" => match value {
+                            "NoChange" => overlay_position = Some(OverlayPosition::NoChange),
+                            "Below" => overlay_position = Some(OverlayPosition::Below),
+                            "Above" => overlay_position = Some(OverlayPosition::Above),
+                            _ => break 'general,
+                        },
+                        "SkinPreference" => match value.is_empty() {
+                            false => skin_preference = Some(value.into()),
+                            _ => break 'general,
+                        },
+                        "EpilepsyWarning" => match value.parse() {
+                            Ok(value) => epilepsy_warning = Some(value),
+                            _ => break 'general,
+                        },
+                        "Countdown" => match value.parse() {
+                            Ok(0) => countdown = Some(Countdown::None),
+                            Ok(1) => countdown = Some(Countdown::Normal),
+                            Ok(2) => countdown = Some(Countdown::Half),
+                            Ok(3) => countdown = Some(Countdown::Double),
+                            _ => break 'general,
+                        },
+                        "SpecialStyle" => match value.parse() {
+                            Ok(value) => special_style = Some(value),
+                            _ => break 'general,
+                        },
+                        "WidescreenStoryboard" => match value.parse() {
+                            Ok(value) => widescreen_storyboard = Some(value),
+                            _ => break 'general,
+                        },
+                        "SamplesMatchPlaybackRate" => match value.parse() {
+                            Ok(value) => samples_match_playback_rate = Some(value),
+                            _ => break 'general,
+                        },
+                        _ => key_matched = false,
+                    };
+                };
+                if filedata && !key_matched {
+                    key_matched = true;
+                    match key {
+                        "AudioFilename" => match value.is_empty() {
+                            false => audio_filename = Some(value.into()),
+                            _ => break 'general,
+                        },
+                        "AudioLeadIn" => match value.parse() {
+                            Ok(value) => audio_lead_in = Some(value),
+                            _ => break 'general,
+                        },
+                        "AudioHash" => match value.is_empty() {
+                            false => audio_hash = Some(value.into()),
+                            _ => break 'general,
+                        },
+                        "PreviewTime" => match value.parse() {
+                            Ok(value) => preview_time = Some(value),
+                            _ => break 'general,
+                        },
+                        "CountdownOffset" => match value.parse() {
+                            Ok(value) => countdown_offset = Some(value),
+                            _ => break 'general,
+                        },
+                        _ => key_matched = false,
+                    };
+                };
+                parsed = key_matched;
+            }
+            "[Editor]" => 'editor: {
+                if !editor {
+                    break 'editor;
+                };
+                let (key, value) = match line.split_once(':') {
+                    Some((lhs, rhs)) => (lhs.trim(), rhs.trim()),
+                    _ => break 'editor,
+                };
+                match key {
+                    "[Bookmarks]" => {
+                        let mut tokens: Vec<i64>;
+                        for raw_token in value.split(',') {
+                            match raw_token.parse() {
+                                Ok(token) => tokens.push(token),
+                                _ => break 'editor,
+                            }
+                        }
+                        bookmarks.append(&mut tokens);
+                    }
+                    "[DistanceSpacing]" => match from_str_ratio(value) {
+                        Ok(value) => distance_spacing = Some(value),
+                        _ => break 'editor,
+                    },
+                    "[BeatDivisor]" => match value.parse() {
+                        Ok(value) => beat_divisor = Some(value),
+                        _ => break 'editor,
+                    },
+                    "[GridSize]" => match value.parse() {
+                        Ok(value) => grid_size = Some(value),
+                        _ => break 'editor,
+                    },
+                    "[TimelineZoom]" => match from_str_ratio(value) {
+                        Ok(value) => timeline_zoom = Some(value),
+                        _ => break 'editor,
+                    },
+                    _ => break 'editor,
+                };
+                parsed = true;
+            }
+            "[Metadata]" => 'metadata: {
+                if !metadata {
+                    break 'metadata;
+                };
+                let (key, value) = match line.split_once(':') {
+                    Some((lhs, rhs)) => (lhs.trim(), rhs.trim()),
+                    _ => break 'metadata,
+                };
+                match key {
+                    "Title" => title = Some(value.into()),
+                    "TitleUnicode" => title_unicode = Some(value.into()),
+                    "Artist" => artist = Some(value.into()),
+                    "ArtistUnicode" => artist_unicode = Some(value.into()),
+                    "Creator" => creator = Some(value.into()),
+                    "Version" => version = Some(value.into()),
+                    "Source" => source = Some(value.into()),
+                    "Tags" => {
+                        for token in value.split(',') {
+                            // Check delimiter TODO
+                            tags.push(token.into());
+                        }
+                    }
+                    "BeatmapID" => match value.parse() {
+                        Ok(value) => beatmap_id = Some(value),
+                        _ => break 'metadata,
+                    },
+                    "BeatmapSetID" => match value.parse() {
+                        Ok(value) => beatmap_set_id = Some(value),
+                        _ => break 'metadata,
+                    },
+                    _ => break 'metadata,
+                };
+                parsed = true;
+            }
+            "Difficulty" => 'difficulty: {
+                if !chart && !difficulty {
+                    break 'difficulty;
+                };
+                let (key, value) = match line.split_once(':') {
+                    Some((lhs, rhs)) => (lhs.trim(), rhs.trim()),
+                    _ => break 'difficulty,
+                };
+                let key_matched = false;
+                if chart {
+                    key_matched = true;
+                    match key {
+                        "StackLeniency" => match from_str_ratio(value) {
+                            Ok(value) => stack_leniency = Some(value),
+                            _ => break 'difficulty,
+                        },
+                        "SliderMultiplier" => match from_str_ratio(value) {
+                            Ok(value) => slider_multiplier = Some(value),
+                            _ => break 'difficulty,
+                        },
+                        "SliderTickRate" => match from_str_ratio(value) {
+                            Ok(value) => slider_tick_rate = Some(value),
+                            _ => break 'difficulty,
+                        },
+                        _ => key_matched = false,
+                    }
+                }
+                if difficulty && !key_matched {
+                    key_matched = true;
+                    match key {
+                        "CircleSize" => match from_str_one_decimal(value) {
+                            Ok(value) => circle_size = Some(value),
+                            _ => break 'difficulty,
+                        },
+                        "HPDrainRate" => match from_str_one_decimal(value) {
+                            Ok(value) => hpdrain_rate = Some(value),
+                            _ => break 'difficulty,
+                        },
+                        "OverallDifficulty" => match from_str_one_decimal(value) {
+                            Ok(value) => overall_difficulty = Some(value),
+                            _ => break 'difficulty,
+                        },
+                        "ApproachRate" => match from_str_one_decimal(value) {
+                            Ok(value) => approach_rate = Some(value),
+                            _ => break 'difficulty,
+                        },
+                        _ => key_matched = false,
+                    }
+                }
+                parsed = key_matched;
+            }
+            "[Events]" => 'events: {
+                /* // Basically broken TODO
+                if !customization {
+                    break 'events;
+                };
+
+                let mut split = line.splitn(2, ',');
+                let event_type = match split.next() {
+                    Some(value) => value,
+                    _ => break 'events,
+                };
+                let start_time = match split.next() {
+                    // This is broken for Storyboards TODO
+                    Some(value) => match value.parse() {
+                        Ok(time) => time,
+                        _ => break 'events,
+                    },
+                    _ => break 'events,
+                };
+                let event_params = match split.next() {
+                    Some(value) => value,
+                    _ => break 'events,
+                };
+                match event_type {
+                    "0" => {}           // Parse background TODO
+                    "1" | "Video" => {} // Parse video TODO
+                    "2" => {}           // Parse break TODO
+                    // Enumerate and parse all events TODO
+                    _ => break 'events,
+                }
+                parsed = true; */
+            }
+            "[TimingPoints]" => 'timing_points: {
+                if !chart {
+                    break 'timing_points;
+                };
+                let mut tokens = line.split(',').map(|t| t.trim());
+                let time = match tokens.next() {
+                    Some(token) => match token.trim().parse() {
+                        Ok(time) => time,
+                        _ => break 'timing_points,
+                    },
+                    _ => break 'timing_points,
+                };
+                let beat_length = match tokens.next() {
+                    Some(token) => match token.trim().parse() {
+                        Ok(length) => length,
+                        _ => break 'timing_points,
+                    },
+                    _ => break 'timing_points,
+                };
+                let meter = match tokens.next() {
+                    Some(token) => match token.trim().parse() {
+                        Ok(meter) => meter,
+                        _ => break 'timing_points,
+                    },
+                    _ => 4,
+                };
+                let sample_set = match tokens.next() {
+                    Some(token) => match token.parse() {
+                        Ok(0) => SampleSet::Default,
+                        Ok(1) => SampleSet::Normal,
+                        Ok(2) => SampleSet::Soft,
+                        Ok(3) => SampleSet::Drum,
+                        _ => break 'timing_points,
+                    },
+                    _ => SampleSet::Default,
+                };
+                let sample_index = match tokens.next() {
+                    Some(token) => match token.trim().parse() {
+                        Ok(index) => index,
+                        _ => break 'timing_points,
+                    },
+                    _ => 0,
+                };
+                let volume = match tokens.next() {
+                    Some(token) => match token.trim().parse() {
+                        Ok(volume) => volume,
+                        _ => break 'timing_points,
+                    },
+                    _ => 100,
+                };
+                let uninherited = match tokens.next() {
+                    Some(token) => match token.trim().parse() {
+                        Ok(uninherited) => uninherited,
+                        _ => break 'timing_points,
+                    },
+                    _ => true,
+                };
+                let effects = match tokens.next() {
+                    Some(token) => match token.trim().parse::<u8>() {
+                        Ok(number) => {
+                            let bits = number.view_bits::<Lsb0>();
+                            Effects {
+                                kiai: bits[0],
+                                ommit_barline: bits[1],
+                            }
+                        }
+                        _ => break 'timing_points,
+                    },
+                    _ => Effects {
+                        kiai: false,
+                        ommit_barline: false,
+                    },
+                };
+                timing_points.push(TimingPoint {
+                    time,
+                    beat_length,
+                    meter,
+                    sample_set,
+                    sample_index,
+                    volume,
+                    uninherited,
+                    effects,
+                });
+                parsed = true;
+            }
+            "[Colours]" => 'colours: {
+                // More research needs to be done on this field TODO
+                if !customization {
+                    break 'colours;
+                };
+                let mut rgb = match line.split_once(':') {
+                    Some((_, rhs)) => rhs.split(','),
+                    _ => break 'colours,
+                };
+                let (red, green, blue) = match (rgb.next(), rgb.next(), rgb.next()) {
+                    (Some(r), Some(g), Some(b)) => match (r.parse(), g.parse(), b.parse()) {
+                        (Ok(R), Ok(G), Ok(B)) => (R, G, B),
+                        _ => break 'colours,
+                    },
+                    _ => break 'colours,
+                };
+                colors.push(Color { red, green, blue });
+                parsed = true;
+            }
+            "[HitObjects]" => 'hit_objects: {
+                if !chart {
+                    break 'hit_objects;
+                };
+                let mut tokens = line.split(',').map(|t| t.trim());
+                let (x, y, time, flag_bits) =
+                    match (tokens.next(), tokens.next(), tokens.next(), tokens.next()) {
+                        (Some(a), Some(b), Some(c), Some(d)) => {
+                            match (a.parse(), b.parse(), c.parse(), d.parse::<u8>()) {
+                                (Ok(A), Ok(B), Ok(C), Ok(D)) => (A, B, C, D.view_bits::<Lsb0>()),
+                                _ => break 'hit_objects,
+                            }
+                        }
+                        _ => break 'hit_objects,
+                    };
+                let object_type = match {
+                    flag_bits[0] as usize * 2_usize.pow(0)
+                        + flag_bits[1] as usize * 2_usize.pow(1)
+                        + flag_bits[3] as usize * 2_usize.pow(3)
+                        + flag_bits[7] as usize * 2_usize.pow(7)
+                } {
+                    1 => ObjectType::Circle,      // 2^0
+                    2 => ObjectType::Slider,      // 2^1
+                    8 => ObjectType::Spinner,     // 2^3
+                    128 => ObjectType::ManiaHold, // 2^7
+                    _ => break 'hit_objects,
+                };
+                let flags = Type {
+                    object_type,
+                    new_combo: flag_bits[2],
+                    color_skip: flag_bits[4..7].load::<u8>(),
+                };
+                let hit_sound = match tokens.next() {
+                    Some(value) => match value.parse::<u8>() {
+                        Ok(value) => {
+                            let bits = value.view_bits::<Lsb0>();
+                            HitSound {
+                                normal: bits[0],
+                                whistle: bits[1],
+                                finish: bits[2],
+                                clap: bits[3],
+                            }
+                        }
+                        _ => break 'hit_objects,
+                    },
+                    _ => break 'hit_objects,
+                };
+                fn parse_hit_sound(sound: u8) -> HitSound {
+                    let bits = sound.view_bits::<Lsb0>();
+                    HitSound {
+                        normal: bits[0],
+                        whistle: bits[1],
+                        finish: bits[2],
+                        clap: bits[3],
+                    }
+                }
+                fn parse_sample_set(sample: &str) -> Option<SampleSet> {
+                    match sample.parse() {
+                        Ok(0) => Some(SampleSet::Default),
+                        Ok(1) => Some(SampleSet::Normal),
+                        Ok(2) => Some(SampleSet::Soft),
+                        Ok(3) => Some(SampleSet::Drum),
+                        _ => None,
+                    }
+                }
+                fn parse_hit_sample(sample: &str) -> Option<HitSample> {
+                    let mut tokens = sample.split(':').map(|t| t.trim());
+                    let normal_set = match tokens.next() {
+                        Some(value) => match parse_sample_set(value) {
+                            Some(sample) => sample,
+                            _ => return None,
+                        },
+                        _ => SampleSet::Default,
+                    };
+                    let addition_set = match tokens.next() {
+                        Some(value) => match parse_sample_set(value) {
+                            Some(sample) => sample,
+                            _ => return None,
+                        },
+                        _ => SampleSet::Default,
+                    };
+                    let index = match tokens.next() {
+                        Some(value) => match value.parse() {
+                            Ok(value) => value,
+                            _ => return None,
+                        },
+                        _ => 0,
+                    };
+                    let volume = match tokens.next() {
+                        Some(value) => match value.parse() {
+                            Ok(value) => value,
+                            _ => return None,
+                        },
+                        _ => 100,
+                    };
+                    let filename = match tokens.next() {
+                        Some(value) => match value.is_empty() {
+                            false => Some(value.into()),
+                            _ => return None,
+                        },
+                        _ => None,
+                    };
+                    Some(HitSample {
+                        normal_set,
+                        addition_set,
+                        index,
+                        volume,
+                        filename,
+                    })
+                }
+                let object: HitObject = match object_type {
+                    ObjectType::Circle => {
+                        // Hit objects have no objectParams
+                        let hit_sample = match parse_hit_sample(tokens.next().unwrap_or("")) {
+                            Some(sample) => sample,
+                            _ => break 'hit_objects,
+                        };
+                        HitObject::Circle(Circle {
+                            x,
+                            y,
+                            time,
+                            flags,
+                            hit_sound,
+                            hit_sample,
+                        })
+                    }
+                    ObjectType::Slider => {
+                        let mut curve_split = match tokens.next() {
+                            Some(token) => token.split('|').map(|s| s.trim()),
+                            _ => break 'hit_objects,
+                        };
+                        let curve_type = match curve_split.next() {
+                            Some("B") => CurveType::Bezier,
+                            Some("C") => CurveType::Centripetal,
+                            Some("L") => CurveType::Linear,
+                            Some("P") => CurveType::Perfect,
+                            _ => break 'hit_objects,
+                        };
+                        let mut curve_points: Vec<(i64, i64)>;
+                        let mut point = curve_split.next();
+                        while point != None {
+                            match point.unwrap().split_once(':') {
+                                Some((x, y)) => match (x.trim().parse(), y.trim().parse()) {
+                                    (Ok(X), Ok(Y)) => curve_points.push((X, Y)),
+                                    _ => break 'hit_objects,
+                                },
+                            }
+                            point = curve_split.next();
+                        }
+                        let curve = Curve {
+                            _type: curve_type,
+                            points: curve_points,
+                        };
+                        let (slides, length) = match (tokens.next(), tokens.next()) {
+                            (Some(slides), Some(length)) => {
+                                match (slides.trim().parse(), length.trim().parse()) {
+                                    (Ok(slides), Ok(length)) => (slides, length),
+                                    _ => break 'hit_objects,
                                 }
                             }
-                        }
-                        "[DistanceSpacing]" => match from_str_ratio(value) {
-                            Ok(value) => distance_spacing = Some(value),
-                            _ => invalid_line = true,
-                        },
-                        "[BeatDivisor]" => match value.parse() {
-                            Ok(value) => beat_divisor = Some(value),
-                            _ => invalid_line = true,
-                        },
-                        "[GridSize]" => match value.parse() {
-                            Ok(value) => grid_size = Some(value),
-                            _ => invalid_line = true,
-                        },
-                        "[TimelineZoom]" => match from_str_ratio(value) {
-                            Ok(value) => timeline_zoom = Some(value),
-                            _ => invalid_line = true,
-                        },
-                    }
-                } else {
-                    invalid_line = true;
-                }
-                if invalid_line {
-                    return Err(ParseError::InvalidLine {
-                        line: line.into(),
-                        section: section.into(),
-                    });
-                }
-            }
-            "[Metadata]" => {
-                if !metadata {
-                    continue;
-                }
-                let mut invalid_line = false;
-                if let Some((key, value)) = line.split_once(':') {
-                    let key = key.trim();
-                    let value = value.trim();
-                    match key {
-                        "Title" => title = Some(value.into()),
-                        "TitleUnicode" => title_unicode = Some(value.into()),
-                        "Artist" => artist = Some(value.into()),
-                        "ArtistUnicode" => artist_unicode = Some(value.into()),
-                        "Creator" => creator = Some(value.into()),
-                        "Version" => version = Some(value.into()),
-                        "Source" => source = Some(value.into()),
-                        "Tags" => {
-                            for token in value.split(',') {
-                                // Check delimiter TODO
-                                tags.push(token.into());
+                            _ => break 'hit_objects,
+                        };
+                        let sounds_split = match tokens.next() {
+                            Some(token) => token.split('|').map(|t| t.trim()),
+                            _ => break 'hit_objects,
+                        };
+                        let mut edge_sounds: Vec<HitSound>;
+                        let mut sound = sounds_split.next();
+                        while sound != None {
+                            match sound.unwrap().parse::<u8>() {
+                                Ok(number) => edge_sounds.push(parse_hit_sound(number)),
+                                _ => break 'hit_objects,
                             }
+                            sound = sounds_split.next();
                         }
-                        "BeatmapID" => match value.parse() {
-                            Ok(value) => beatmap_id = Some(value),
-                            _ => invalid_line = true,
-                        },
-                        "BeatmapSetID" => match value.parse() {
-                            Ok(value) => beatmap_set_id = Some(value),
-                            _ => invalid_line = true,
-                        },
-                    }
-                } else {
-                    invalid_line = true;
-                }
-                if invalid_line {
-                    return Err(ParseError::InvalidLine {
-                        line: line.into(),
-                        section: section.into(),
-                    });
-                }
-            }
-            "Difficulty" => {
-                if !chart && !difficulty {
-                    continue;
-                }
-                let invalid_line = false;
-                if let Some((key, value)) = line.split_once(':') {
-                    let key_matched = false;
-                    if chart {
-                        key_matched = true;
-                        match key {
-                            "StackLeniency" => match from_str_ratio(value) {
-                                Ok(value) => stack_leniency = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            "SliderMultiplier" => match from_str_ratio(value) {
-                                Ok(value) => slider_multiplier = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            "SliderTickRate" => match from_str_ratio(value) {
-                                Ok(value) => slider_tick_rate = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            _ => key_matched = false,
+                        let sets_split = match tokens.next() {
+                            Some(token) => token.split('|').map(|t| t.trim()),
+                            _ => break 'hit_objects,
+                        };
+                        let mut edge_sets: Vec<(SampleSet, SampleSet)>;
+                        let set = sets_split.next();
+                        while set != None {
+                            match set.unwrap().split_once(':') {
+                                Some((normal, addition)) => {
+                                    match (parse_sample_set(normal), parse_sample_set(addition)) {
+                                        (Some(normal), Some(addition)) => {
+                                            edge_sets.push((normal, addition))
+                                        }
+                                        _ => break 'hit_objects,
+                                    }
+                                }
+                                _ => break 'hit_objects,
+                            };
                         }
+                        let hit_sample = match parse_hit_sample(tokens.next().unwrap_or("")) {
+                            Some(sample) => sample,
+                            _ => break 'hit_objects,
+                        };
+                        HitObject::Slider(Slider {
+                            x,
+                            y,
+                            time,
+                            flags,
+                            hit_sound,
+                            curve,
+                            slides,
+                            length,
+                            edge_sounds,
+                            edge_sets,
+                            hit_sample,
+                        })
                     }
-                    if difficulty && !key_matched {
-                        key_matched = true;
-                        match key {
-                            "CircleSize" => match from_str_one_decimal(value) {
-                                Ok(value) => circle_size = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            "HPDrainRate" => match from_str_one_decimal(value) {
-                                Ok(value) => hpdrain_rate = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            "OverallDifficulty" => match from_str_one_decimal(value) {
-                                Ok(value) => overall_difficulty = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            "ApproachRate" => match from_str_one_decimal(value) {
-                                Ok(value) => approach_rate = Some(value),
-                                _ => invalid_line = true,
-                            },
-                            _ => key_matched = false,
-                        }
+                    ObjectType::Spinner => {
+                        let (end_time, hit_sample) =
+                            match (tokens.next(), tokens.next().unwrap_or("")) {
+                                (Some(time), sample) => {
+                                    match (time.parse(), parse_hit_sample(sample)) {
+                                        (Ok(time), Some(sample)) => (time, sample),
+                                        _ => break 'hit_objects,
+                                    }
+                                }
+                                _ => break 'hit_objects,
+                            };
+                        HitObject::Spinner(Spinner {
+                            x,
+                            y,
+                            time,
+                            flags,
+                            hit_sound,
+                            end_time,
+                            hit_sample,
+                        })
                     }
-                } else {
-                    invalid_line = true;
-                }
-                if invalid_line {
-                    return Err(ParseError::InvalidLine {
-                        line: line.into(),
-                        section: section.into(),
-                    });
-                }
-            }
-            "[Events]" => {
-                if !customization {
-                    continue;
-                }
-                let mut invalid_line = false;
-                match line.chars().next() {
-                    Some('0') => {} // Parse background TODO
-                    Some('2') => {} // Parse break TODO
-                    // Enumerate and parse all events TODO
-                    _ => invalid_line = true,
-                }
-                if invalid_line {
-                    return Err(ParseError::InvalidLine {
-                        line: line.into(),
-                        section: section.into(),
-                    });
-                }
-            }
-            "[TimingPoints]" => {
-                if !chart {
-                    continue;
-                }
-                let meter = 4;
-                let sample_set = SampleSet::Default;
-                let sample_index = 0;
-                let volume = 100;
-                let uninherited = true;
-                let effects = Effects {
-                    kiai: false,
-                    ommit_barline: false,
+                    ObjectType::ManiaHold => {
+                        let (end_time, hit_sample) = match tokens.next() {
+                            Some(token) => match token.split_once(':') {
+                                Some((time, sample)) => {
+                                    match (time.parse(), parse_hit_sample(sample)) {
+                                        (Ok(time), Some(sample)) => (time, sample),
+                                        _ => break 'hit_objects,
+                                    }
+                                }
+                                _ => break 'hit_objects,
+                            },
+                            _ => break 'hit_objects,
+                        };
+                        HitObject::ManiaHold(ManiaHold {
+                            x,
+                            y,
+                            time,
+                            flags,
+                            hit_sound,
+                            end_time,
+                            hit_sample,
+                        })
+                    }
                 };
-                let mut invalid_line = false;
-                match (
-                    line.split(',').nth(0),
-                    line.split(',').nth(1),
-                    line.split(',').nth(2),
-                    line.split(',').nth(3),
-                    line.split(',').nth(4),
-                    line.split(',').nth(5),
-                    line.split(',').nth(6),
-                    line.split(',').nth(7),
-                ) {
-                    (Some(time), Some(beat_length), None, None, None, None, None, None) => {
-                        match (time.trim().parse(), beat_length.trim().parse()) {
-                            (Ok(time), Ok(beat_length)) => timing_points.push(TimingPoint {
-                                time,
-                                beat_length,
-                                meter,
-                                sample_set,
-                                sample_index,
-                                volume,
-                                uninherited,
-                                effects,
-                            }),
-                            _ => invalid_line = true,
-                        }
-                    }
-                    (
-                        Some(time),
-                        Some(beat_length),
-                        Some(meter),
-                        Some(sample_set),
-                        Some(sample_index),
-                        Some(volume),
-                        None,
-                        None,
-                    ) => {
-                        match (
-                            time.trim().parse(),
-                            beat_length.trim().parse(),
-                            meter.trim().parse(),
-                            match sample_set.trim() {
-                                "0" => Some(SampleSet::Default),
-                                "1" => Some(SampleSet::Normal),
-                                "2" => Some(SampleSet::Soft),
-                                "3" => Some(SampleSet::Drum),
-                                _ => None,
-                            },
-                            sample_index.trim().parse(),
-                            volume.trim().parse(),
-                        ) {
-                            (
-                                Ok(time),
-                                Ok(beat_length),
-                                Ok(meter),
-                                Some(sample_set),
-                                Ok(sample_index),
-                                Ok(volume),
-                            ) => timing_points.push(TimingPoint {
-                                time,
-                                beat_length,
-                                meter,
-                                sample_set,
-                                sample_index,
-                                volume,
-                                uninherited,
-                                effects,
-                            }),
-                            _ => invalid_line = true,
-                        }
-                    }
-                    (
-                        Some(time),
-                        Some(beat_length),
-                        Some(meter),
-                        Some(sample_set),
-                        Some(sample_index),
-                        Some(volume),
-                        Some(uninherited),
-                        None,
-                    ) => {
-                        match (
-                            time.trim().parse(),
-                            beat_length.trim().parse(),
-                            meter.trim().parse(),
-                            match sample_set.trim() {
-                                "0" => Some(SampleSet::Default),
-                                "1" => Some(SampleSet::Normal),
-                                "2" => Some(SampleSet::Soft),
-                                "3" => Some(SampleSet::Drum),
-                                _ => None,
-                            },
-                            sample_index.trim().parse(),
-                            volume.trim().parse(),
-                            uninherited.trim().parse(),
-                        ) {
-                            (
-                                Ok(time),
-                                Ok(beat_length),
-                                Ok(meter),
-                                Some(sample_set),
-                                Ok(sample_index),
-                                Ok(volume),
-                                Ok(uninherited),
-                            ) => timing_points.push(TimingPoint {
-                                time,
-                                beat_length,
-                                meter,
-                                sample_set,
-                                sample_index,
-                                volume,
-                                uninherited,
-                                effects,
-                            }),
-                            _ => invalid_line = true,
-                        }
-                    }
-                    (
-                        Some(time),
-                        Some(beat_length),
-                        Some(meter),
-                        Some(sample_set),
-                        Some(sample_index),
-                        Some(volume),
-                        Some(uninherited),
-                        Some(effects),
-                    ) => {
-                        match (
-                            time.trim().parse(),
-                            beat_length.trim().parse(),
-                            meter.trim().parse(),
-                            match sample_set.trim() {
-                                "0" => Some(SampleSet::Default),
-                                "1" => Some(SampleSet::Normal),
-                                "2" => Some(SampleSet::Soft),
-                                "3" => Some(SampleSet::Drum),
-                                _ => None,
-                            },
-                            sample_index.trim().parse(),
-                            volume.trim().parse(),
-                            uninherited.trim().parse(),
-                            match effects.trim() {
-                                "0" => Some(Effects {
-                                    kiai: false,
-                                    ommit_barline: false,
-                                }),
-                                "1" => Some(Effects {
-                                    kiai: true,
-                                    ommit_barline: false,
-                                }),
-                                "4" => Some(Effects {
-                                    kiai: false,
-                                    ommit_barline: true,
-                                }),
-                                "5" => Some(Effects {
-                                    kiai: true,
-                                    ommit_barline: true,
-                                }),
-                                _ => None,
-                            },
-                        ) {
-                            (
-                                Ok(time),
-                                Ok(beat_length),
-                                Ok(meter),
-                                Some(sample_set),
-                                Ok(sample_index),
-                                Ok(volume),
-                                Ok(uninherited),
-                                Some(effects),
-                            ) => timing_points.push(TimingPoint {
-                                time,
-                                beat_length,
-                                meter,
-                                sample_set,
-                                sample_index,
-                                volume,
-                                uninherited,
-                                effects,
-                            }),
-                            _ => invalid_line = true,
-                        }
-                    }
-                    _ => invalid_line = true,
-                }
-                if invalid_line {
-                    return Err(ParseError::InvalidLine {
-                        line: line.into(),
-                        section: section.into(),
-                    });
-                }
-            }
-            "[Colours]" => {
-                if !customization {
-                    continue;
-                }
-                let mut invalid_line = false;
-                if let Some((_, value)) = line.split_once(':') {
-                    if let (Some(red), Some(green), Some(blue)) = (
-                        value.split(',').nth(0),
-                        value.split(',').nth(1),
-                        value.split(',').nth(2),
-                    ) {
-                        match (red.parse(), green.parse(), blue.parse()) {
-                            (Ok(red), Ok(green), Ok(blue)) => {
-                                colors.push(Color { red, green, blue })
-                            }
-                            _ => invalid_line = true,
-                        }
-                    } else {
-                        invalid_line = true;
-                    }
-                } else {
-                    invalid_line = true;
-                }
-                if invalid_line {
-                    return Err(ParseError::InvalidLine {
-                        line: line.into(),
-                        section: section.into(),
-                    });
-                }
-            }
-            "[HitObjects]" => {
-                if !chart {
-                    continue;
-                }
-                let mut invalid_line = false;
-                let split = line.split(',');
-                let x = match split.nth(0) {
-                    Some(value) => match value.trim().parse::<i64>() {
-                        Ok(value) => Some(value),
-                        _ => None,
-                    },
-                    _ => None,
-                };
-                let y = match x {
-                    Some(_) => match split.nth(1) {
-                        Some(value) => match value.trim().parse::<i64>() {
-                            Ok(value) => Some(value),
-                            _ => None,
-                        },
-                        _ => None,
-                    },
-                    _ => None,
-                };
-                let time = match y {
-                    Some(_) => match split.nth(2) {
-                        Some(value) => match value.trim().parse::<i64>() {
-                            Ok(value) => Some(value),
-                            _ => None,
-                        },
-                        _ => None,
-                    },
-                    _ => None,
-                };
-                let flag_bits = match time {
-                    Some(_) => match split.nth(3) {
-                        Some(value) => match value.trim().parse::<u8>() {
-                            Ok(value) => Some(value.view_bits::<Lsb0>()),
-                            _ => None,
-                        },
-                        _ => None,
-                    },
-                    _ => None,
-                };
-                let object_type = match flag_bits {
-                    Some(bits) => match {
-                        bits[0] as usize * 2_usize.pow(0)
-                            + bits[1] as usize * 2_usize.pow(1)
-                            + bits[3] as usize * 2_usize.pow(3)
-                            + bits[7] as usize * 2_usize.pow(7)
-                    } {
-                        1 => Some(ObjectType::Circle),
-                        2 => Some(ObjectType::Slider),
-                        8 => Some(ObjectType::Spinner),
-                        128 => Some(ObjectType::ManiaHold),
-                        _ => None,
-                    },
-                    _ => None,
-                };
-                let flags = match object_type {
-                    Some(object_type) => Some(Type {
-                        object_type,
-                        new_combo: flag_bits?[2],
-                        color_skip: flag_bits?[4..7].load::<u8>(),
-                    }),
-                    None => None,
-                };
-                let hit_sound = match flags {
-                    Some(_) => match split.nth(4) {
-                        Some(value) => match value.trim().parse::<u4>() {
-                            Some(value) => {
-                                let bits = value.view_bits::<Lsb0>();
-                                Some(HitSound {
-                                    normal: bits[0],
-                                    whistle: bits[1],
-                                    finish: bits[2],
-                                    clap: bits[3],
-                                })
-                            }
-                            _ => None,
-                        },
-                        _ => None,
-                    },
-                    _ => None,
-                };
-                fn parse_hit_sample(sample: &str) -> Option<HitSample> {
-                    let split = sample.split(':');
-                    let normal_set = match split.nth(0) {
-                        Some(value) => match value.trim() {
-                            "0" => Some(SampleSet::Default),
-                            "1" => Some(SampleSet::Normal),
-                            "2" => Some(SampleSet::Soft),
-                            "3" => Some(SampleSet::Drum),
-                        },
-                        _ => None,
-                    };
-                    let addition_set = match split.nth(1) {
-                        Some(value) => match value.trim() {
-                            "0" => Some(SampleSet::Default),
-                            "1" => Some(SampleSet::Normal),
-                            "2" => Some(SampleSet::Soft),
-                            "3" => Some(SampleSet::Drum),
-                        },
-                        _ => None,
-                    };
-                    let index = match split.nth(2) {
-                        Some(value) => match value.trim().parse() {
-                            Ok(value) => Some(value),
-                            _ => None,
-                        },
-                        _ => None,
-                    };
-                    let volume = match split.nth(3) {
-                        Some(value) => match value.trim().parse() {
-                            Ok(value) => Some(value),
-                            _ => None,
-                        },
-                        _ => None,
-                    };
-                    let filename = match split.nth(4) {
-                        Some(value) => Some(value.trim()),
-                        _ => None,
-                    };
-                    HitSample {
-                        normal_set: match normal_set {
-                            Some(value) => value,
-                            _ => SampleSet::Default,
-                        },
-                        addition_set: match addition_set {
-                            Some(value) => value,
-                            _ => SampleSet::Default,
-                        },
-                        index: match index {
-                            Some(value) => value,
-                            _ => 0,
-                        },
-                        v,
-                    }
-                }
-                match hit_sound {
-                    Some(_) => match object_type? {
-                        ObjectType::Circle => {
-                            // Parse hit circle TODO
-                        }
-                        ObjectType::Slider => {
-                            // Parse slider TODO
-                        }
-                        ObjectType::Spinner => {
-                            // Parse spinner TODO
-                        }
-                        ObjectType::ManiaHold => {
-                            // Parse mania hold TODO
-                        }
-                    },
-                    _ => invalid_line = true,
-                }
-                if invalid_line {
-                    return Err(ParseError::InvalidLine {
-                        line: line.into(),
-                        section: section.into(),
-                    });
-                }
             }
         }
+        if !parsed {
+            return Err(ParseError::InvalidLine {
+                line: line.into(),
+                section: section.into(),
+            });
+        };
+        current_line = lines.next();
     }
 
     // Create all the collections

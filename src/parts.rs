@@ -47,20 +47,6 @@ pub struct Effects {
     ommit_barline: bool, // 4 on
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct HalfHitSample {
-    normal_set: SampleSet,
-    addition_set: SampleSet,
-}
-impl Default for HalfHitSample {
-    fn default() -> Self {
-        Self {
-            normal_set: SampleSet::Default,
-            addition_set: SampleSet::Default,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct HitSample {
     normal_set: SampleSet,
