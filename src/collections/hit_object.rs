@@ -16,47 +16,47 @@ pub enum HitObject {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Circle {
-    x: i64,
-    y: i64,
-    time: i64,
-    flags: Type,
-    hit_sound: HitSound,
-    hit_sample: HitSample,
+    pub x: i64,
+    pub y: i64,
+    pub time: i64,
+    pub flags: Type,
+    pub hit_sound: HitSound,
+    pub hit_sample: HitSample,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Slider {
-    x: i64,
-    y: i64,
-    time: i64,
-    flags: Type,
-    hit_sound: HitSound,
-    curve: Curve,
-    slides: i64,
-    length: f64,
-    edge_sounds: Vec<HitSound>,
-    edge_sets: Vec<(SampleSet, SampleSet)>,
-    hit_sample: HitSample,
+    pub x: i64,
+    pub y: i64,
+    pub time: i64,
+    pub flags: Type,
+    pub hit_sound: HitSound,
+    pub curve: Curve,
+    pub slides: i64,
+    pub length: f64,
+    pub edge_sounds: Vec<HitSound>,
+    pub edge_sets: Vec<(SampleSet, SampleSet)>,
+    pub hit_sample: HitSample,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Spinner {
-    x: i64,
-    y: i64,
-    time: i64,
-    flags: Type,
-    hit_sound: HitSound,
-    end_time: i64,
-    hit_sample: HitSample,
+    pub x: i64,
+    pub y: i64,
+    pub time: i64,
+    pub flags: Type,
+    pub hit_sound: HitSound,
+    pub end_time: i64,
+    pub hit_sample: HitSample,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ManiaHold {
-    x: i64,
-    y: i64,
-    time: i64,
-    flags: Type,
-    hit_sound: HitSound,
-    end_time: i64,
-    hit_sample: HitSample,
+    pub x: i64,
+    pub y: i64,
+    pub time: i64,
+    pub flags: Type,
+    pub hit_sound: HitSound,
+    pub end_time: i64,
+    pub hit_sample: HitSample,
 }

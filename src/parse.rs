@@ -83,7 +83,7 @@ pub fn parse_str(
     let mut beatmap_id = None;
     let mut beatmap_set_id = None;
 
-    let sections = vec![
+    let mut sections = vec![
         "[General]",
         "[Editor]",
         "[Metadata]",
@@ -171,7 +171,7 @@ pub fn parse_str(
                             _ => break 'general,
                         },
                         "UseSkinSprites" => match value.parse() {
-                            Ok(value) => story_fire_in_front = Some(value),
+                            Ok(value) => use_skin_sprites = Some(value),
                             _ => break 'general,
                         },
                         "AlwaysShowPlayField" => match value.parse() {
@@ -252,7 +252,7 @@ pub fn parse_str(
                 };
                 match key {
                     "[Bookmarks]" => {
-                        let mut tokens: Vec<i64>;
+                        let mut tokens: Vec<i64> = vec![];
                         for raw_token in value.split(',') {
                             match raw_token.parse() {
                                 Ok(token) => tokens.push(token),
@@ -323,7 +323,7 @@ pub fn parse_str(
                     Some((lhs, rhs)) => (lhs.trim(), rhs.trim()),
                     _ => break 'difficulty,
                 };
-                let key_matched = false;
+                let mut key_matched = false;
                 if chart {
                     key_matched = true;
                     match key {
@@ -494,7 +494,7 @@ pub fn parse_str(
                 };
                 let (red, green, blue) = match (rgb.next(), rgb.next(), rgb.next()) {
                     (Some(r), Some(g), Some(b)) => match (r.parse(), g.parse(), b.parse()) {
-                        (Ok(R), Ok(G), Ok(B)) => (R, G, B),
+                        (Ok(r), Ok(g), Ok(b)) => (r, g, b),
                         _ => break 'colours,
                     },
                     _ => break 'colours,
@@ -507,16 +507,17 @@ pub fn parse_str(
                     break 'hit_objects;
                 };
                 let mut tokens = line.split(',').map(|t| t.trim());
-                let (x, y, time, flag_bits) =
+                let (x, y, time, flags) =
                     match (tokens.next(), tokens.next(), tokens.next(), tokens.next()) {
-                        (Some(a), Some(b), Some(c), Some(d)) => {
-                            match (a.parse(), b.parse(), c.parse(), d.parse::<u8>()) {
-                                (Ok(A), Ok(B), Ok(C), Ok(D)) => (A, B, C, D.view_bits::<Lsb0>()),
+                        (Some(x), Some(y), Some(time), Some(flags)) => {
+                            match (x.parse(), y.parse(), time.parse(), flags.parse::<u8>()) {
+                                (Ok(x), Ok(y), Ok(time), Ok(flags)) => (x, y, time, flags),
                                 _ => break 'hit_objects,
                             }
                         }
                         _ => break 'hit_objects,
                     };
+                let flag_bits = flags.view_bits::<Lsb0>();
                 let object_type = match {
                     flag_bits[0] as usize * 2_usize.pow(0)
                         + flag_bits[1] as usize * 2_usize.pow(1)
@@ -640,14 +641,15 @@ pub fn parse_str(
                             Some("P") => CurveType::Perfect,
                             _ => break 'hit_objects,
                         };
-                        let mut curve_points: Vec<(i64, i64)>;
+                        let mut curve_points: Vec<(i64, i64)> = vec![];
                         let mut point = curve_split.next();
                         while point != None {
                             match point.unwrap().split_once(':') {
                                 Some((x, y)) => match (x.trim().parse(), y.trim().parse()) {
-                                    (Ok(X), Ok(Y)) => curve_points.push((X, Y)),
+                                    (Ok(x), Ok(y)) => curve_points.push((x, y)),
                                     _ => break 'hit_objects,
                                 },
+                                _ => break 'hit_objects,
                             }
                             point = curve_split.next();
                         }
@@ -664,11 +666,11 @@ pub fn parse_str(
                             }
                             _ => break 'hit_objects,
                         };
-                        let sounds_split = match tokens.next() {
+                        let mut sounds_split = match tokens.next() {
                             Some(token) => token.split('|').map(|t| t.trim()),
                             _ => break 'hit_objects,
                         };
-                        let mut edge_sounds: Vec<HitSound>;
+                        let mut edge_sounds: Vec<HitSound> = vec![];
                         let mut sound = sounds_split.next();
                         while sound != None {
                             match sound.unwrap().parse::<u8>() {
@@ -677,11 +679,11 @@ pub fn parse_str(
                             }
                             sound = sounds_split.next();
                         }
-                        let sets_split = match tokens.next() {
+                        let mut sets_split = match tokens.next() {
                             Some(token) => token.split('|').map(|t| t.trim()),
                             _ => break 'hit_objects,
                         };
-                        let mut edge_sets: Vec<(SampleSet, SampleSet)>;
+                        let mut edge_sets: Vec<(SampleSet, SampleSet)> = vec![];
                         let set = sets_split.next();
                         while set != None {
                             match set.unwrap().split_once(':') {
@@ -759,7 +761,10 @@ pub fn parse_str(
                         })
                     }
                 };
+                hit_objects.push(object);
+                parsed = true;
             }
+            _ => {}
         }
         if !parsed {
             return Err(ParseError::InvalidLine {
@@ -942,8 +947,8 @@ pub fn parse_str(
 }
 
 fn from_str_ratio(decimal: &str) -> Result<Ratio<i64>, Box<dyn std::error::Error>> {
-    let mut numerator;
-    let mut denominator;
+    let numerator;
+    let denominator;
     if let Some((lhs, rhs)) = decimal.split_once('.') {
         let (lhs, rhs) = match (lhs.is_empty(), rhs.is_empty()) {
             (false, false) => (lhs, rhs),

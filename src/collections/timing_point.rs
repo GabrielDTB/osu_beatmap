@@ -3,14 +3,14 @@ use crate::parts::SampleSet;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TimingPoint {
-    time: i64,
-    beat_length: f64,
-    meter: i64,
-    sample_set: SampleSet,
-    sample_index: i64,
-    volume: i64,
-    uninherited: bool,
-    effects: Effects,
+    pub time: i64,
+    pub beat_length: f64,
+    pub meter: i64,
+    pub sample_set: SampleSet,
+    pub sample_index: i64,
+    pub volume: i64,
+    pub uninherited: bool,
+    pub effects: Effects,
 }
 impl Default for TimingPoint {
     fn default() -> Self {
