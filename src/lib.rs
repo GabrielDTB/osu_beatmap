@@ -5,6 +5,5 @@ pub mod difficulty;
 pub mod editor;
 pub mod filedata;
 pub mod metadata;
-pub mod mode;
 pub mod parse;
 mod parts;
